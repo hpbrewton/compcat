@@ -25,8 +25,19 @@ kconvolution db _ 0 (Left _)   = Just []
 kconvolution db i k (Left key) = do 
     schema <- i `M.lookup` (schema db) 
     table <- i `M.lookup` (tables db) 
-    etnry <- key `M.lookup` table
-    fmap join $ sequence $ zipWith (\i' e' -> kconvolution db i' (k-1) e') schema etnry
+    case (key `M.lookup` table) of
+        Just v -> fmap join $ sequence $ zipWith (\i' e' -> kconvolution db i' (k-1) e') schema v
+        Nothing -> do
+            sz <- size db i (k+1)
+            Just $ take sz $ repeat ""
+
+size :: Database -> Id -> Int -> Maybe Int 
+size db i 0 = Just 0
+size db i k = do 
+    entry <- i `M.lookup` (schema db) 
+    if null entry 
+        then Just 1 -- that is it is a final type 
+        else fmap sum $ sequence $ map (\i' -> size db i' (k-1)) entry
 
 -- down window
 window :: TypeSchema -> Int -> Id -> Maybe [Id]
@@ -52,7 +63,7 @@ window schema depth t = do
 someFunc :: IO ()
 someFunc = do 
     let treeSchema = M.fromList [(0, []), (1, [1, 1, 0])]
-    let dat = M.fromList [(0, M.fromList []), (1, M.fromList [ (43, [Left 44, Left 45, Right "hello"]), (44, [Left 44, Left 44, Right "three"]), (45, [Left 46, Left 47, Right "four"]), (46, [Left 46, Left 46, Right "five"]), (47, [Left 47, Left 47, Right "six"])])]
+    let dat = M.fromList [(0, M.fromList []), (1, M.fromList [ (43, [Left 44, Left 45, Right "hello"]), (44, [Left 0, Left 0, Right "three"]), (45, [Left 46, Left 47, Right "four"]), (46, [Left 0, Left 0, Right "five"]), (47, [Left 0, Left 0, Right "six"])])]
     let db = Database treeSchema dat
-    let kc = kconvolution db 1 3 (Left 43)
+    let kc = kconvolution db 1 4 (Left 43)
     putStrLn $ show kc
